@@ -186,7 +186,7 @@ SELECT twitchgroup, isEvent FROM multitwitch
     WHERE twitchgroup=(SELECT twitchgroup FROM multitwitch WHERE broadcaster=?)
         AND broadcaster=?'''
             await cursor.execute(query, (args.chat.channel, who))
-            groupO, event = await cursor.fetchone() or [None, None]  # type: ignore  # noqa: E501
+            groupO, event = await cursor.fetchone() or [None, None]
             if groupO is None:
                 args.chat.send(f'''\
 Multitwitch of {who} does not exist or is not part of the same multitwitch of \
@@ -243,7 +243,7 @@ Removed {who} from a multitwitch with {args.chat.channel}''')
         if args.message.lower[1] == 'reset':
             query = 'SELECT twitchgroup FROM multitwitch WHERE broadcaster=?'
             await cursor.execute(query, (args.chat.channel,))
-            groupO, = await cursor.fetchone() or [None]  # type: ignore
+            groupO, = await cursor.fetchone() or [None]
             if groupO is None:
                 args.chat.send(f'''\
 Multitwitch of {args.chat.channel} does not exist''')
@@ -279,7 +279,7 @@ SELECT twitchgroup, isEvent FROM multitwitch
     WHERE twitchgroup=(SELECT twitchgroup FROM multitwitch WHERE broadcaster=?)
         AND broadcaster=?'''
             await cursor.execute(query, (args.chat.channel, who))
-            groupO, event = await cursor.fetchone() or [None, None]  # type: ignore  # noqa: E501
+            groupO, event = await cursor.fetchone() or [None, None]
             if groupO is not None:
                 query = 'UPDATE multitwitch SET isEvent=? WHERE broadcaster=?'
                 await cursor.execute(query, (not event, who,))
