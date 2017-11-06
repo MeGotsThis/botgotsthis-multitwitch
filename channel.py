@@ -220,8 +220,9 @@ Removed {who} from a multitwitch with {args.chat.channel}''')
                 return True
 
             query = '''
-SELECT COUNT(*) FROM multitwitch WHERE twitchgroup=? AND isEvent=0
-UNION ALL SELECT COUNT(*) FROM multitwitch WHERE twitchgroup=? AND isEvent=1'''
+SELECT COUNT(*) FROM multitwitch WHERE twitchgroup=? AND isEvent=FALSE
+UNION ALL
+    SELECT COUNT(*) FROM multitwitch WHERE twitchgroup=? AND isEvent=TRUE'''
             await cursor.execute(query, (groupO,) * 2)
             notEvent, = await cursor.fetchone()
             inEvent, = await cursor.fetchone()
@@ -250,14 +251,15 @@ Multitwitch of {args.chat.channel} does not exist''')
                 return True
 
             query = '''
-SELECT COUNT(*) FROM multitwitch WHERE twitchgroup=? AND isEvent=0
-UNION ALL SELECT COUNT(*) FROM multitwitch WHERE twitchgroup=? AND isEvent=1'''
+SELECT COUNT(*) FROM multitwitch WHERE twitchgroup=? AND isEvent=FALSE
+UNION ALL
+    SELECT COUNT(*) FROM multitwitch WHERE twitchgroup=? AND isEvent=TRUE'''
             await cursor.execute(query, (groupO,) * 2)
             notEvent, = await cursor.fetchone()
             inEvent, = await cursor.fetchone()
             if notEvent > 0 and inEvent > 1:
                 query = '''
-DELETE FROM multitwitch WHERE twitchgroup=? AND isEvent=0'''
+DELETE FROM multitwitch WHERE twitchgroup=? AND isEvent=FALSE'''
                 await cursor.execute(query, (groupO,))
                 args.chat.send('Reset the multitwitch of non-event users')
                 await args.database.commit()
