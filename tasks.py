@@ -1,41 +1,42 @@
 ﻿import socket
 from datetime import datetime
-from typing import Any, Dict, Optional  # noqa: F401
+from typing import Any, Dict, Optional, Tuple  # noqa: F401
 
 import aiohttp  # noqa: F401
 import aioodbc.cursor  # noqa: F401
 
-import bot
-import bot.utils
 from lib.api import twitch
-from lib import database
+from lib import cache
+from lib.database import DatabaseMain
 
 from . import library
 
 
 async def checkLiveStreams(timestamp: datetime) -> None:
-    database_: database.Database
+    data: cache.CacheStore
+    db: DatabaseMain
     cursor: aioodbc.cursor.Cursor
-    async with database.get_database() as database_, \
-            await database_.cursor() as cursor:
+    async with cache.get_cache() as data,\
+            DatabaseMain.acquire() as db,\
+            await db.cursor() as cursor:
         try:
             query: str
-            channels: Dict[str, bool] = {}
+            channels: Dict[str, Tuple[str, bool]] = {}
             query = 'SELECT broadcaster, isEvent FROM multitwitch'
             await cursor.execute(query)
             channel: str
             event: bool
             async for channel, event in cursor:
-                if not await bot.utils.loadTwitchId(channel):
+                if not await data.twitch_load_id(channel):
                     continue
-                if bot.globals.twitchId[channel] is None:
+                id: Optional[str] = await data.twitch_get_id(channel)
+                if id is None:
                     continue
-                channels[channel] = event
+                channels[channel] = id, event
             if not channels:
                 return
             channelsList: str
-            channelsList = ','.join(str(bot.globals.twitchId[c])
-                                    for c in channels)
+            channelsList = ','.join(channels[c][0] for c in channels)
             uri: str = '/kraken/streams?channel=' + channelsList
             response: aiohttp.ClientResponse
             streamsData: Optional[Dict[str, Any]]
@@ -67,6 +68,6 @@ DELETE FROM multitwitch
              HAVING COUNT(*)=1)
 '''
             await cursor.execute(query)
-            await database_.connection.commit()
+            await db.connection.commit()
         except socket.gaierror:
             pass

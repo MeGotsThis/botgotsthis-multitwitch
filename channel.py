@@ -5,8 +5,8 @@ from typing import Any, List, Optional, Tuple, cast  # noqa: F401
 import aioodbc.cursor  # noqa: F401
 
 from bot import utils
-from lib.api import twitch
 from lib.data import ChatCommandArgs
+from lib.database import DatabaseMain
 from lib.helper.chat import not_feature
 
 from . import library
@@ -34,6 +34,7 @@ async def commandMultiTwitch(args: ChatCommandArgs) -> bool:
     # TODO: mypy fix after https://github.com/python/mypy/issues/1855
 
     currentTime: datetime = utils.now()
+    db: DatabaseMain
     cursor: aioodbc.cursor
     query: str
     params: Tuple[Any, ...]
@@ -43,7 +44,7 @@ async def commandMultiTwitch(args: ChatCommandArgs) -> bool:
     groupO: Optional[str]
     groups: List[Tuple[Any, ...]]
     event: Optional[bool]
-    async with await args.database.cursor() as cursor:
+    async with DatabaseMain.acquire() as db, await db.cursor() as cursor:
         if (len(args.message) < 2 or not args.permissions.moderator
                 or args.message.lower[1] in library.multiUrls):
             cooldown: timedelta = timedelta(seconds=30)
@@ -85,9 +86,9 @@ Just do !multitwitch add <twitch user> to create/start a multitwitch link''')
                 args.chat.sessionData['multitwitch'] = currentTime
                 return True
 
-            default: str = await args.database.getChatProperty(
+            default: str = await args.data.getChatProperty(
                 args.chat.channel, 'multitwitch', library.default, str)
-            preference: str = await args.database.getChatProperty(
+            preference: str = await args.data.getChatProperty(
                 args.nick, 'multitwitch', default, str)
             if (len(args.message) >= 2
                     and args.message.lower[1] in library.multiUrls):
@@ -103,11 +104,10 @@ Just do !multitwitch add <twitch user> to create/start a multitwitch link''')
 
         if args.message.lower[1] == 'preference':
             if len(args.message) < 2:
-                await args.database.setChatProperty(args.nick, 'multitwitch',
-                                                    None)
+                await args.data.setChatProperty(args.nick, 'multitwitch', None)
             elif args.message.lower[2] in library.multiUrls:
-                await args.database.setChatProperty(args.nick, 'multitwitch',
-                                                    args.message.lower[2])
+                await args.data.setChatProperty(args.nick, 'multitwitch',
+                                                args.message.lower[2])
             else:
                 args.chat.send('Unrecognized multitwitch site')
 
@@ -120,7 +120,7 @@ Just do !multitwitch add <twitch user> to create/start a multitwitch link''')
                 other = args.nick
             else:
                 other = args.message.lower[2]
-                if not await twitch.is_valid_user(other):
+                if not await args.data.twitch_is_valid_user(other):
                     args.chat.send(f'{other} is not a valid Twitch user')
                     return True
             if other == args.chat.channel:
@@ -173,7 +173,7 @@ UPDATE multitwitch SET twitchgroup=? WHERE twitchgroup=?'''
                 await cursor.executemany(query, paramsM)
                 args.chat.send(f'''\
 Merged the multitwitches of {args.chat.channel} and {other}''')
-            await args.database.commit()
+            await db.commit()
 
         if args.message.lower[1] in ['drop', 'delete', 'del' 'remove', 'rem']:
             who: str
@@ -204,7 +204,7 @@ Reset the multitwitch of {args.chat.channel} and others''')
                 else:
                     args.chat.send(f'''\
 Reset the multitwitch of {args.chat.channel} and {who}''')
-                await args.database.commit()
+                await db.commit()
                 return True
 
             if not event:
@@ -216,7 +216,7 @@ Removed {args.chat.channel} from a multitwitch''')
                 else:
                     args.chat.send(f'''\
 Removed {who} from a multitwitch with {args.chat.channel}''')
-                await args.database.commit()
+                await db.commit()
                 return True
 
             query = '''
@@ -239,7 +239,7 @@ Removed {args.chat.channel} from a multitwitch''')
             else:
                 args.chat.send(f'''\
 Removed {who} from a multitwitch with {args.chat.channel}''')
-            await args.database.commit()
+            await db.commit()
 
         if args.message.lower[1] == 'reset':
             query = 'SELECT twitchgroup FROM multitwitch WHERE broadcaster=?'
@@ -262,14 +262,14 @@ UNION ALL
 DELETE FROM multitwitch WHERE twitchgroup=? AND isEvent=FALSE'''
                 await cursor.execute(query, (groupO,))
                 args.chat.send('Reset the multitwitch of non-event users')
-                await args.database.commit()
+                await db.commit()
                 return True
 
             query = 'DELETE FROM multitwitch WHERE twitchgroup=?'
             await cursor.execute(query, (groupO,))
             args.chat.send(f'''\
 Reset the multitwitch of {args.chat.channel} and others''')
-            await args.database.commit()
+            await db.commit()
 
         if args.message.lower[1] == 'event' and args.permissions.owner:
             if len(args.message) < 3:
@@ -290,7 +290,7 @@ SELECT twitchgroup, isEvent FROM multitwitch
                 else:
                     args.chat.send(
                         f'{who} is unmarked from an event multitwitch')
-                await args.database.commit()
+                await db.commit()
             else:
                 args.chat.send(f'''\
 Multitwitch of {who} does not exist or is not part of the same multitwitch of \
